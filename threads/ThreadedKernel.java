@@ -68,7 +68,7 @@ public class ThreadedKernel extends Kernel {
             public void run() {
                 long start = Machine.timer().getTime();
                 System.out.println("Thread A: waiting at " + start);
-                ThreadedKernel.alarm.waitUntil(500);
+                ThreadedKernel.alarm.waitUntil(1000);
                 long end = Machine.timer().getTime();
                 System.out.println("Thread A: woke at " + end + ", waited: " + (end - start));
             }
