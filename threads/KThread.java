@@ -33,7 +33,7 @@ public class KThread {
      *
      * @return	the current thread.
      */
-    public static KThread currentThread() {
+	public static KThread currentThread() {
 	Lib.assertTrue(currentThread != null);
 	return currentThread;
     }
@@ -182,20 +182,21 @@ public class KThread {
      * delete this thread.
      */
     public static void finish() {
-	Lib.debug(dbgThread, "Finishing thread: " + currentThread.toString());
-	
-	Machine.interrupt().disable();
+		Lib.debug(dbgThread, "Finishing thread: " + currentThread.toString());
 
-	Machine.autoGrader().finishingCurrentThread();
+		Machine.interrupt().disable();
+		Machine.autoGrader().finishingCurrentThread();
 
-	Lib.assertTrue(toBeDestroyed == null);
-	toBeDestroyed = currentThread;
+		Lib.assertTrue(toBeDestroyed == null);
+		toBeDestroyed = currentThread;
 
+		if (currentThread.joiner != null) {
+			currentThread.joiner.ready();  // join 대기 스레드 깨움
+		}
 
-	currentThread.status = statusFinished;
-	
-	sleep();
-    }
+		currentThread.status = statusFinished;
+		sleep();
+	}
 
     /**
      * Relinquish the CPU if any other thread is ready to run. If so, put the
@@ -272,12 +273,50 @@ public class KThread {
      * call is not guaranteed to return. This thread must not be the current
      * thread.
      */
-    public void join() {
-	Lib.debug(dbgThread, "Joining to thread: " + toString());
+	private static final char dbgThread = 't';
 
-	Lib.assertTrue(this != currentThread);
+	private boolean joined = false; 	   // 한 스레드가 join을 한번만 호출할 수 있도록 제한
+	private KThread joiner = null;     // 현재 스레드를 기다리는 join 요청 스레드 저장
+	public void join() {
+		Lib.debug(dbgThread, "Joining to thread: " + toString());
+		Lib.assertTrue(this != currentThread ); //자기 자신을 join하는 경우 방지
+		Lib.assertTrue(!joined, "error"); // 이미 join이 호출된 경우 방지
 
-    }
+		boolean intStatus = Machine.interrupt().disable();
+
+		if (this.status != statusFinished) {
+			joined = true;
+			joiner = currentThread;  // 누가 나를 기다리고 있는지 저장
+			currentThread.sleep();   // 현재 스레드 block
+		}
+
+		Machine.interrupt().restore(intStatus);
+	}
+
+
+	private static void joinTest1 () {
+		KThread child1 = new KThread( new Runnable () {
+			public void run() {
+				System.out.println("I (heart) Nachos!");
+			}
+		});
+
+		child1.setName("child1").fork();
+
+		// We want the child to finish before we call join.  Although
+		// our solutions to the problems cannot busy wait, our test
+		// programs can!
+
+		for (int i = 0; i < 5; i++) {
+			System.out.println ("busy...");
+			KThread.currentThread().yield();
+		}
+
+		child1.join();
+		System.out.println("After joining, child1 should be finished.");
+		System.out.println("is it? " + (child1.status == statusFinished));
+		Lib.assertTrue((child1.status == statusFinished), " Expected child1 to be finished.");
+	}
 
     /**
      * Create the idle thread. Whenever there are no threads ready to be run,
@@ -400,48 +439,64 @@ public class KThread {
     /**
      * Tests whether this module is working.
      */
-    public static void selfTest() {
+	private static void alarmTest() {
+		new KThread(new Runnable() {
+			public void run() {
+				long start = Machine.timer().getTime();
+				System.out.println("Thread A: waiting at " + start);
+				ThreadedKernel.alarm.waitUntil(1000);
+				long end = Machine.timer().getTime();
+				System.out.println("Thread A: woke at " + end + ", waited: " + (end - start));
+			}
+		}).setName("AlarmTest").fork();
+
+		// 현재 스레드가 너무 빨리 종료되지 않도록 CPU 양보
+		for (int i = 0; i < 1000; i++) {
+			KThread.yield();
+		}
+	}
+
+	public static void selfTest() {
+	joinTest1();
 	Lib.debug(dbgThread, "Enter KThread.selfTest");
-	
-	new KThread(new PingTest(1)).setName("forked thread").fork();
-	new PingTest(0).run();
-    }
 
-    private static final char dbgThread = 't';
+	//new KThread(new PingTest(1)).setName("forked thread").fork();
+	//new PingTest(0).run();
+	}
 
-    /**
-     * Additional state used by schedulers.
-     *
-     * @see	nachos.threads.PriorityScheduler.ThreadState
-     */
-    public Object schedulingState = null;
+			/**
+			 * Additional state used by schedulers.
+			 *
+			 * @see	nachos.threads.PriorityScheduler.ThreadState
+			 */
+			public Object schedulingState = null;
 
-    private static final int statusNew = 0;
-    private static final int statusReady = 1;
-    private static final int statusRunning = 2;
-    private static final int statusBlocked = 3;
-    private static final int statusFinished = 4;
+			private static final int statusNew = 0;
+			private static final int statusReady = 1;
+			private static final int statusRunning = 2;
+			private static final int statusBlocked = 3;
+			private static final int statusFinished = 4;
 
-    /**
-     * The status of this thread. A thread can either be new (not yet forked),
-     * ready (on the ready queue but not running), running, or blocked (not
-     * on the ready queue and not running).
-     */
-    private int status = statusNew;
-    private String name = "(unnamed thread)";
-    private Runnable target;
-    private TCB tcb;
+			/**
+			 * The status of this thread. A thread can either be new (not yet forked),
+			 * ready (on the ready queue but not running), running, or blocked (not
+			 * on the ready queue and not running).
+			 */
+			private int status = statusNew;
+			private String name = "(unnamed thread)";
+			private Runnable target;
+			private TCB tcb;
 
-    /**
-     * Unique identifer for this thread. Used to deterministically compare
-     * threads.
-     */
-    private int id = numCreated++;
-    /** Number of times the KThread constructor was called. */
-    private static int numCreated = 0;
+			/**
+			 * Unique identifer for this thread. Used to deterministically compare
+			 * threads.
+			 */
+			private int id = numCreated++;
+			/** Number of times the KThread constructor was called. */
+			private static int numCreated = 0;
 
-    private static ThreadQueue readyQueue = null;
-    private static KThread currentThread = null;
-    private static KThread toBeDestroyed = null;
-    private static KThread idleThread = null;
-}
+			private static ThreadQueue readyQueue = null;
+			private static KThread currentThread = null;
+			private static KThread toBeDestroyed = null;
+			private static KThread idleThread = null;
+	}

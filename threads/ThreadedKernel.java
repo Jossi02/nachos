@@ -63,21 +63,7 @@ public class ThreadedKernel extends Kernel {
 
 
     public void selfTest() {
-        // Alarm을 테스트할 스레드 생성
-        new KThread(new Runnable() {
-            public void run() {
-                long start = Machine.timer().getTime();
-                System.out.println("Thread A: waiting at " + start);
-                ThreadedKernel.alarm.waitUntil(1000);
-                long end = Machine.timer().getTime();
-                System.out.println("Thread A: woke at " + end + ", waited: " + (end - start));
-            }
-        }).setName("AlarmTest").fork();
-
-        // 현재 스레드가 너무 빨리 종료되지 않도록 CPU 양보
-        for (int i = 0; i < 1000; i++) {
-            KThread.yield();
-        }
+        KThread.selfTest();
     }
 
 
