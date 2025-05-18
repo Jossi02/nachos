@@ -64,6 +64,7 @@ public class ThreadedKernel extends Kernel {
 
     public void selfTest() {
         KThread.selfTest();
+        intlockTest.selfTest();
     }
 
 
