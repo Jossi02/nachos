@@ -63,27 +63,61 @@ public class ThreadedKernel extends Kernel {
 
 
     public void selfTest() {
-        KThread.selfTest();
-        intlockTest.selfTest();
+        System.out.println("=== Priority Scheduler Test ===");
+
+        //스레드 생성
+        KThread low = new KThread(new Runnable() {
+            public void run() {
+                System.out.println("Priority : 2 (Low) thread running at " + Machine.timer().getTime());
+            }
+        }).setName("Low");
+
+        KThread mid = new KThread(new Runnable() {
+            public void run() {
+                System.out.println("Priority : 4 (Mid) thread running at " + Machine.timer().getTime());
+            }
+        }).setName("Mid");
+
+        KThread mid2 = new KThread(new Runnable() {
+            public void run() {
+                System.out.println("Priority : 4 (Mid2) thread running at " + Machine.timer().getTime());
+            }
+        }).setName("Mid2");
+
+        KThread high = new KThread(new Runnable() {
+            public void run() {
+                System.out.println("Priority : 7 (High) thread running at " + Machine.timer().getTime());
+            }
+        }).setName("High");
+
+        // 우선순위 설정
+        boolean intStatus = Machine.interrupt().disable();
+        ThreadedKernel.scheduler.setPriority(low, 2);
+        ThreadedKernel.scheduler.setPriority(mid, 4);
+        ThreadedKernel.scheduler.setPriority(mid2, 4);
+        ThreadedKernel.scheduler.setPriority(high, 7);
+        Machine.interrupt().restore(intStatus);
+
+        // 순서 확인을 위해 low → mid2 → mid → high 순으로 fork
+        low.fork();
+        mid2.fork();
+        mid.fork();
+        high.fork();
+
+        // join으로 종료 대기
+        low.join();
+        mid.join();
+        mid2.join();
+        high.join();
+
+        System.out.println("=== Test Finished ===");
     }
 
 
-
-
-    /*
-	KThread.selfTest();
-	Semaphore.selfTest();
-	SynchList.selfTest();
-	if (Machine.bank() !D= null) {
-	    ElevatorBank.selfTest();
-	}
-	*/
-
-
-    /**
-     * A threaded kernel does not run user programs, so this method does
-     * nothing.
-     */
+        /**
+         * A threaded kernel does not run user programs, so this method does
+         * nothing.
+         */
     public void run() {
     }
 
